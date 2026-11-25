@@ -5,7 +5,7 @@
    輸出 PDF 時以 300dpi 把每張 A4 畫成圖片再用 pdf-lib 組成 PDF（不需要嵌入中文字型）。 */
 
 var A4W = 210, A4H = 297, PT = 25.4/72;   // 1pt = 0.3528mm
-var FONT_NAMES = {
+var FONT_NAMES = {   // 使用裝置上的系統字型（要偵測有沒有安裝）
   kai:  ["DFKai-SB","BiauKai","Kaiti TC","標楷體","KaiTi","STKaiti"],
   hei:  ["Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC"],
   ming: ["PMingLiU","新細明體","Songti TC","Noto Serif TC"]
@@ -16,6 +16,10 @@ var FONTS = {};
 Object.keys(FONT_NAMES).forEach(function(k){
   FONTS[k] = FONT_NAMES[k].map(function(n){ return '"' + n + '"'; }).join(",") + "," + GENERIC[k];
 });
+// 內建的「全字庫正楷體」：網站自己提供的切片網頁字型（fonts/twkai/twkai.css）。
+// 後面接系統楷體，是給切片沒有的字（例如第 2 字面以上的罕見字）當備用。
+var TWKAI = "twkai";
+FONTS[TWKAI] = '"TW-Kai-Web",' + FONTS.kai;
 
 var SLIDERS = [
   {k:"nameSize",  label:"姓名字級", min:24, max:160, step:1,    unit:"pt"},
@@ -96,6 +100,10 @@ function nameBox(p, L, ph, align){
 // 這個人目前有哪些版面問題（自動縮小、姓名與職稱重疊）
 function issues(p){
   var out = [], ph = A4H/T.folds, L = layout(p);
+  if($("font").value === TWKAI){   // 內建字型只含 Unicode 基本字面（BMP），更罕見的字會退回裝置上的字型
+    var rare = Array.from(p.name + p.title).filter(function(c){ return c.codePointAt(0) > 0xFFFF; });
+    if(rare.length) out.push("含內建字型沒有的罕見字「" + rare.join("") + "」，這些字會改用裝置上的字型，可能顯示成方框或不同字體");
+  }
   if(L.shrunk) out.push("字太長，已自動縮小（姓名 "+Math.round(L.ns)+"pt／職稱 "+Math.round(L.ts)+"pt）");
   if(p.name && p.title){
     var nbx = nameBox(p, L, ph, $("nameAlign").value);
@@ -171,12 +179,33 @@ function drawSheet(ctx, ppm, group, forExport){
 /* ---------- 預覽 ---------- */
 var raf = 0;
 function schedule(){ cancelAnimationFrame(raf); raf = requestAnimationFrame(renderPreview); saveSettings(); }
+
+/* ---------- 內建字型（全字庫正楷體切片）的載入 ----------
+   字型被切成很多小檔，瀏覽器只會下載「用到的字」所在的那幾片。canvas 不會等字型，
+   所以要先 document.fonts.load()，載入完再重畫；否則會先畫成備用字型。 */
+var twRequested = {};   // 已經要求載入過的字（成功或失敗都不再重試，避免重複請求或無限重畫）
+var twBusy = 0;
+function allText(){
+  return T.people.map(function(p){ return p.name + p.title; }).join("");
+}
+function ensureTwKai(){
+  if($("font").value !== TWKAI) return;
+  var need = Array.from(allText()).filter(function(c){ return c.trim() && !twRequested[c]; });
+  if(!need.length) return;
+  need.forEach(function(c){ twRequested[c] = true; });
+  twBusy++; $("fontStatus").hidden = false;
+  document.fonts.load('40px "TW-Kai-Web"', need.join("")).catch(function(){}).then(function(){
+    twBusy--; if(!twBusy) $("fontStatus").hidden = true;
+    schedule();   // 載入完成，用正確字型重畫
+  });
+}
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
   });
 }
 function renderPreview(){
+  ensureTwKai();
   var groups = sheetGroups(), N = groups.length;
   T.page = Math.min(Math.max(T.page,0), Math.max(N-1,0));
   var ppm = 3;
@@ -338,7 +367,9 @@ function fontInstalled(names){
   });
 }
 function updateFontHint(){
-  var k = $("font").value, ok = fontInstalled(FONT_NAMES[k]);
+  var k = $("font").value;
+  if(k === TWKAI){ $("fontHint").hidden = true; return; }   // 內建字型不依賴裝置
+  var ok = fontInstalled(FONT_NAMES[k]);
   $("fontHint").hidden = ok;
   if(!ok) $("fontHint").textContent = "這台裝置似乎沒有「" + FONT_LABEL[k] + "」，預覽與 PDF 會改用其他字型，印出來的樣子會不一樣。";
 }
@@ -429,7 +460,11 @@ function buildPdf(onProgress){
   var groups = sheetGroups(), ppm = 300/25.4;
   var off = document.createElement("canvas"); off.width = Math.round(A4W*ppm); off.height = Math.round(A4H*ppm);
   var ctx = off.getContext("2d");
-  return loadPdfLib().then(function(){ return PDFLib.PDFDocument.create(); }).then(function(doc){
+  // 內建字型：確認名單裡用到的字都載入完成才開始畫（載入失敗就會用備用字型，不會卡住）
+  var fontReady = ($("font").value === TWKAI)
+    ? document.fonts.load('40px "TW-Kai-Web"', allText()).catch(function(){})
+    : Promise.resolve();
+  return fontReady.then(loadPdfLib).then(function(){ return PDFLib.PDFDocument.create(); }).then(function(doc){
     var chain = Promise.resolve();
     groups.forEach(function(g, idx){
       chain = chain.then(function(){

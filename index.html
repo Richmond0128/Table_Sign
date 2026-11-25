@@ -12,6 +12,7 @@
 <meta property="og:description" content="貼上姓名與職稱，立刻預覽並下載可直接列印的 A4 桌牌 PDF。支援二折、三折、四折式，名單不會上傳。">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="fonts/twkai/twkai.css">
 </head>
 <body>
 <header class="top">
@@ -64,10 +65,12 @@
       <div id="ctls"></div>
       <div class="ctl"><span>字型</span>
         <select id="font">
-          <option value="kai">標楷體（楷書）</option>
-          <option value="hei">微軟正黑體（黑體）</option>
-          <option value="ming">新細明體（明體）</option>
+          <option value="twkai" selected>全字庫正楷體（內建）</option>
+          <option value="kai">標楷體（使用本機字型）</option>
+          <option value="hei">微軟正黑體（使用本機字型）</option>
+          <option value="ming">新細明體（使用本機字型）</option>
         </select></div>
+      <p class="hint" id="fontStatus" hidden>⏳ 正在載入字型…</p>
       <p class="hint warn" id="fontHint" hidden></p>
       <div class="ctl"><span>姓名位置</span>
         <select id="nameAlign">
@@ -118,8 +121,9 @@
 
 <footer>
   <p>PDF 以 300dpi 輸出，文字是圖片，不能在 PDF 裡選取或修改；要改請回這裡調整後重新下載。</p>
-  <p>字型使用你裝置上的系統字型，所以印出的樣子取決於你的裝置有沒有該字型（Windows 有標楷體，Mac 會改用 BiauKai／Kaiti TC）。設定（折數、字級、位置等）會記在你的瀏覽器裡，名單不會被儲存。</p>
-  <p>使用 <a href="https://pdf-lib.js.org/" target="_blank" rel="noopener">pdf-lib</a>（MIT 授權）組成 PDF。</p>
+  <p>預設字型「全字庫正楷體」是網站內建的，所有裝置看到的都一樣；其餘三種使用你裝置上的系統字型，印出的樣子取決於裝置有沒有該字型。內建字型涵蓋 Unicode 基本字面（約 2.7 萬漢字），更罕見的字會改用裝置上的字型。設定（折數、字級、位置等）會記在你的瀏覽器裡，名單不會被儲存。</p>
+  <p id="fontCredit">字型出處：數位發展部 2026 <a href="https://data.gov.tw/dataset/5961" target="_blank" rel="noopener">CNS11643中文標準交換碼全字庫</a>（正楷體，版本 20261028）。此開放資料依<a href="https://data.gov.tw/license" target="_blank" rel="noopener">政府資料開放授權條款</a> (Open Government Data License) 進行公眾釋出，使用者於遵守本條款各項規定之前提下，得利用之。本網站已將該字型轉換並切片為網頁字型；本網站與數位發展部無關，亦未獲其推薦或背書。</p>
+  <p>使用 <a href="https://pdf-lib.js.org/" target="_blank" rel="noopener">pdf-lib</a>（MIT 授權）組成 PDF。授權與出處說明見專案的 NOTICE.md。</p>
 </footer>
 
 <div id="toast" role="status"></div>
