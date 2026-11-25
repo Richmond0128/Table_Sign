@@ -28,10 +28,15 @@ var CUSTOM_SLIDERS = [
   {k:"titleX", label:"職稱左右位置", min:-105, max:105, step:1, unit:"mm"},
   {k:"titleY", label:"職稱上下位置", min:0,    max:100, step:1, unit:"mm"}
 ];
+// 姓名選「自訂」時才出現：相對於「置中」位置的移動量（右、下為正）
+var NAME_SLIDERS = [
+  {k:"nameX", label:"姓名左右位置", min:-105, max:105, step:1, unit:"mm"},
+  {k:"nameY", label:"姓名上下位置", min:-60,  max:60,  step:1, unit:"mm"}
+];
 var ANCHOR_RANGE = {center:[-105,105], left:[0,210], right:[0,210]};
 var TITLE_TOP = 8;      // 靠左／置中／靠右時，職稱上緣離該格頂端的 mm 數
 var SIDE_MARGIN = 15;   // 靠左／靠右時，職稱離紙邊的 mm 數
-var S = {nameSize:80, titleSize:40, nameSp:0.15, titleSp:0.05, titleX:0, titleY:TITLE_TOP};
+var S = {nameSize:80, titleSize:40, nameSp:0.15, titleSp:0.05, titleX:0, titleY:TITLE_TOP, nameX:0, nameY:0};
 var T = {folds:3, people:[], page:0, busy:false};
 var tAnchor = "center";   // 自訂模式下，「左右位置」是以職稱的 center / left / right 為準
 
@@ -79,13 +84,23 @@ function titleBox(p, L, ph, align){
   y = Math.max(0, Math.min(y, ph - h));            // 不超出該格
   return {x:x, y:y, w:w, h:h};
 }
+// 姓名中心位置與大小（mm，座標同 titleBox）：預設在該格正中央，「自訂」時加上左右、上下偏移
+function nameBox(p, L, ph, align){
+  var w = widthMm(p.name, L.ns, S.nameSp, $("nameBold").checked), h = L.ns*PT;
+  var cx = A4W/2 + (align === "custom" ? S.nameX : 0);
+  var cy = ph/2   + (align === "custom" ? S.nameY : 0);
+  cx = w > A4W-6 ? A4W/2 : Math.max(3 + w/2, Math.min(cx, A4W - 3 - w/2));   // 不超出紙邊
+  cy = h > ph    ? ph/2   : Math.max(h/2, Math.min(cy, ph - h/2));           // 不超出該格
+  return {cx:cx, cy:cy, w:w, h:h};
+}
 // 這個人目前有哪些版面問題（自動縮小、姓名與職稱重疊）
 function issues(p){
   var out = [], ph = A4H/T.folds, L = layout(p);
   if(L.shrunk) out.push("字太長，已自動縮小（姓名 "+Math.round(L.ns)+"pt／職稱 "+Math.round(L.ts)+"pt）");
   if(p.name && p.title){
-    var nw = widthMm(p.name, L.ns, S.nameSp, $("nameBold").checked), nh = L.ns*PT*0.9;   // 0.9：字框比實際筆畫略大
-    var nx = (A4W-nw)/2, ny = ph/2 - nh/2;
+    var nbx = nameBox(p, L, ph, $("nameAlign").value);
+    var nw = nbx.w, nh = nbx.h*0.9;   // 0.9：字框比實際筆畫略大
+    var nx = nbx.cx - nw/2, ny = nbx.cy - nh/2;
     var tb = titleBox(p, L, ph, $("titleAlign").value), th = tb.h*0.9, ty = tb.y + (tb.h-th)/2;
     if(nx < tb.x+tb.w && tb.x < nx+nw && ny < ty+th && ty < ny+nh) out.push("姓名與職稱重疊");
   }
@@ -108,8 +123,11 @@ function drawFace(ctx, ppm, p, panel, ph, rotated){
   ctx.save();
   if(rotated){ ctx.translate(cx,cy); ctx.rotate(Math.PI); ctx.translate(-cx,-cy); }
   ctx.fillStyle = "#000"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
-  // 姓名：固定在該格正中央，字級不影響職稱
-  if(p.name) drawText(ctx, p.name, cx, cy, L.ns*ptpx, S.nameSp, $("nameBold").checked, "center");
+  // 姓名：預設在該格正中央（可自訂偏移），字級不影響職稱位置
+  if(p.name){
+    var nb = nameBox(p, L, ph, $("nameAlign").value);
+    drawText(ctx, p.name, nb.cx*ppm, (panel*ph + nb.cy)*ppm, L.ns*ptpx, S.nameSp, $("nameBold").checked, "center");
+  }
   // 職稱：位置獨立計算
   if(p.title){
     var tb = titleBox(p, L, ph, $("titleAlign").value);
@@ -173,7 +191,7 @@ function renderPreview(){
   $("prev").disabled = T.page<=0; $("next").disabled = T.page>=N-1;
   $("btnPdf").disabled = !N || T.busy;
   $("legend").textContent = "虛線＝折線" + (T.folds===4 ? "、實線＝兩個桌牌的裁切線" : "") +
-    "（可在「字體與位置」分別選擇要不要印）。每個桌牌的反面（旋轉 180°）與正面以折線對稱；姓名固定置中。";
+    "（可在「字體與位置」分別選擇要不要印）。每個桌牌的反面（旋轉 180°）與正面以折線對稱。";
   $("count").textContent = T.people.length + " 人・共 " + N + " 張 A4";
   var cur = T.page*perSheet(), msgs = [];
   Array.prototype.forEach.call($("list").querySelectorAll(".lrow[data-i]"), function(r){
@@ -303,6 +321,12 @@ function addSlider(d, box){
 function setSlider(k, v){ var s = sliderInputs[k]; S[k] = v; s.rg.value = v; s.nb.value = v; }
 SLIDERS.forEach(function(d){ addSlider(d, $("ctls")); });
 CUSTOM_SLIDERS.forEach(function(d){ addSlider(d, $("customPos")); });
+NAME_SLIDERS.forEach(function(d){ addSlider(d, $("customName")); });
+// 姓名位置：「自訂」是從置中位置開始偏移，所以切換時畫面不會跳動
+$("nameAlign").addEventListener("change", function(){
+  $("customName").hidden = (this.value !== "custom");
+  schedule();
+});
 
 // 字型：偵測這台裝置有沒有安裝，沒有的話提醒（會改用備用字型，印出來會不一樣）
 function fontInstalled(names){
@@ -359,7 +383,7 @@ var KEY = "table_sign_settings_v1";
 function saveSettings(){
   try{
     localStorage.setItem(KEY, JSON.stringify({
-      folds:T.folds, S:S, font:$("font").value, align:$("titleAlign").value, anchor:tAnchor,
+      folds:T.folds, S:S, font:$("font").value, align:$("titleAlign").value, nameAlign:$("nameAlign").value, anchor:tAnchor,
       nameBold:$("nameBold").checked, titleBold:$("titleBold").checked, autofit:$("autofit").checked,
       foldLines:$("foldLines").checked, cutLines:$("cutLines").checked
     }));
@@ -372,12 +396,13 @@ function loadSettings(){
   if([2,3,4].indexOf(j.folds) >= 0) T.folds = j.folds;
   if(FONTS[j.font]) $("font").value = j.font;
   if(["left","center","right","custom"].indexOf(j.align) >= 0) $("titleAlign").value = j.align;
+  if(["center","custom"].indexOf(j.nameAlign) >= 0) $("nameAlign").value = j.nameAlign;
   if(ANCHOR_RANGE[j.anchor]){ tAnchor = j.anchor; $("titleAnchor").value = j.anchor; applyAnchorRange(j.anchor); }
   ["nameBold","titleBold","autofit","foldLines","cutLines"].forEach(function(id){
     if(typeof j[id] === "boolean") $(id).checked = j[id];
   });
   if(j.S && typeof j.S === "object"){
-    SLIDERS.concat(CUSTOM_SLIDERS).forEach(function(d){
+    SLIDERS.concat(CUSTOM_SLIDERS, NAME_SLIDERS).forEach(function(d){
       var v = parseFloat(j.S[d.k]); if(isNaN(v)) return;
       var r = d.k === "titleX" ? ANCHOR_RANGE[tAnchor] : [d.min, d.max];
       setSlider(d.k, Math.min(r[1], Math.max(r[0], v)));
@@ -452,6 +477,7 @@ var checkedFold = document.querySelector('.fold input[value="' + T.folds + '"]')
 if(checkedFold) checkedFold.checked = true;
 lastAlign = $("titleAlign").value;
 $("customPos").hidden = (lastAlign !== "custom");
+$("customName").hidden = ($("nameAlign").value !== "custom");
 updateFontHint();
 setFold(T.folds);
 buildList();
