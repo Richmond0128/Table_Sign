@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>桌牌產生器｜線上製作 A4 桌牌 PDF</title>
+<meta name="description" content="貼上姓名與職稱，立刻預覽並下載可直接列印的 A4 桌牌 PDF。支援二折、三折、四折式，全程在瀏覽器本機運作，名單不會上傳。">
+<meta name="theme-color" content="#4f6bed">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="zh_TW">
+<meta property="og:title" content="桌牌產生器｜線上製作 A4 桌牌 PDF">
+<meta property="og:description" content="貼上姓名與職稱，立刻預覽並下載可直接列印的 A4 桌牌 PDF。支援二折、三折、四折式，名單不會上傳。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <h1>🪧 桌牌產生器</h1>
+    <p class="sub">貼上姓名與職稱，預覽後下載可直接列印的 A4 桌牌 PDF</p>
+    <p class="privacy">🔒 名單只在你的瀏覽器裡處理，不會上傳到任何地方</p>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="left">
+    <section class="card">
+      <h2>① 折數 <small>A4 直式平均分割</small></h2>
+      <div class="folds" id="folds">
+        <label class="fold" data-f="2"><input type="radio" name="fold" value="2">
+          <div class="mini"><i class="r">反</i><i>正</i></div><b>二折式</b><span>每格 148.5mm</span></label>
+        <label class="fold on" data-f="3"><input type="radio" name="fold" value="3" checked>
+          <div class="mini"><i class="r">反</i><i>正</i><i class="b">空</i></div><b>三折式</b><span>每格 99mm・底留白</span></label>
+        <label class="fold" data-f="4"><input type="radio" name="fold" value="4">
+          <div class="mini"><i class="r">反</i><i>正</i><i class="r">反</i><i>正</i></div><b>四折式</b><span>每格 74.25mm・一張兩人</span></label>
+      </div>
+      <p class="hint" id="foldHint"></p>
+    </section>
+
+    <section class="card">
+      <h2>② 匯入名單 <small>可一次貼上很多筆</small></h2>
+      <textarea id="paste" placeholder="從 Excel 複製兩欄貼上（姓名　職稱），例如：&#10;王小明 校長&#10;李小強 教務長&#10;也可手動輸入，姓名與職稱用空格、逗號或 Tab 隔開，每行一人"></textarea>
+      <div class="row mt">
+        <button class="primary" id="btnAdd">加入名單</button>
+        <button id="btnReplace">取代整份名單</button>
+        <button id="btnFile">匯入 CSV…</button>
+        <input type="file" id="file" accept=".csv,.txt,text/csv,text/plain" hidden>
+        <button id="btnSample">範例</button>
+      </div>
+      <p class="hint">同一人要印兩份，就把他在名單裡放兩次。</p>
+    </section>
+
+    <section class="card">
+      <h2>③ 名單 <small id="count"></small></h2>
+      <div class="list" id="list"></div>
+      <div class="row mt">
+        <button class="small" id="btnClear">清空名單</button>
+        <span class="hint nomargin">字級欄留空＝用下方全域字級；填數字＝只改這個人</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>④ 字體與位置</h2>
+      <div id="ctls"></div>
+      <div class="ctl"><span>字型</span>
+        <select id="font">
+          <option value="kai">標楷體（楷書）</option>
+          <option value="hei">微軟正黑體（黑體）</option>
+          <option value="ming">新細明體（明體）</option>
+        </select></div>
+      <p class="hint warn" id="fontHint" hidden></p>
+      <div class="ctl"><span>職稱位置</span>
+        <select id="titleAlign">
+          <option value="left" selected>靠左（左上角）</option>
+          <option value="center">置中</option>
+          <option value="right">靠右（右上角）</option>
+          <option value="custom">自訂（拉滑桿調整）</option>
+        </select></div>
+      <div id="customPos" hidden>
+        <div class="ctl"><span>左右基準</span>
+          <select id="titleAnchor">
+            <option value="center">以職稱中心（離頁面中線）</option>
+            <option value="left">以職稱左緣（離紙張左邊）</option>
+            <option value="right">以職稱右緣（離紙張右邊）</option>
+          </select></div>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="nameBold" checked>姓名粗體</label>
+        <label><input type="checkbox" id="titleBold">職稱粗體</label>
+        <label><input type="checkbox" id="autofit" checked>太長時自動縮小</label>
+        <label><input type="checkbox" id="foldLines" checked>印出折線（虛線）</label>
+        <label id="cutLabel"><input type="checkbox" id="cutLines" checked>印出裁切線（實線・僅四折式）</label>
+      </div>
+    </section>
+  </div>
+
+  <div class="preview">
+    <div class="card">
+      <div class="toolbar">
+        <button id="prev" aria-label="上一張">◀</button>
+        <span class="pageno" id="pageno"></span>
+        <button id="next" aria-label="下一張">▶</button>
+        <span class="sp"></span>
+        <button class="primary" id="btnPdf">⬇ 下載 PDF</button>
+      </div>
+      <div class="stage"><canvas id="cv" aria-label="桌牌預覽"></canvas></div>
+      <div class="warnbar" id="warnbar" hidden></div>
+      <p class="hint" id="legend"></p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>PDF 以 300dpi 輸出，文字是圖片，不能在 PDF 裡選取或修改；要改請回這裡調整後重新下載。</p>
+  <p>字型使用你裝置上的系統字型，所以印出的樣子取決於你的裝置有沒有該字型（Windows 有標楷體，Mac 會改用 BiauKai／Kaiti TC）。設定（折數、字級、位置等）會記在你的瀏覽器裡，名單不會被儲存。</p>
+  <p>使用 <a href="https://pdf-lib.js.org/" target="_blank" rel="noopener">pdf-lib</a>（MIT 授權）組成 PDF。</p>
+</footer>
+
+<div id="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>
